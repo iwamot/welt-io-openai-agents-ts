@@ -1,0 +1,21 @@
+{
+  "name": "welt-io-openai-agents-ts-example-agent",
+  "private": true,
+  "description": "A small AgentCore agent that Welt can drive, built on the OpenAI Agents SDK and @welt-io/openai-agents.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openai/agents": "0.16.0",
+    "@welt-io/openai-agents": "workspace:*",
+    "bedrock-agentcore": "0.4.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}
