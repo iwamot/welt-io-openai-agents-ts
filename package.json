@@ -1,0 +1,55 @@
+{
+  "name": "@welt-io/openai-agents",
+  "version": "0.0.0",
+  "description": "The OpenAI Agents SDK (TypeScript) adapter for Welt's wire contract.",
+  "license": "MIT",
+  "author": "Takashi Iwamoto",
+  "homepage": "https://github.com/iwamot/welt-io-openai-agents-ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iwamot/welt-io-openai-agents-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iwamot/welt-io-openai-agents-ts/issues"
+  },
+  "keywords": [
+    "welt",
+    "openai-agents",
+    "slack",
+    "agent",
+    "adapter"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "biome check",
+    "check:write": "biome check --write",
+    "typecheck": "tsc --noEmit",
+    "test": "mkdir -p coverage && node --test --experimental-test-coverage --test-coverage-include='src/*.ts' --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info 'tests/*.test.ts'"
+  },
+  "peerDependencies": {
+    "@openai/agents": ">=0.4.0"
+  },
+  "devDependencies": {
+    "@openai/agents": "0.16.0",
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}
