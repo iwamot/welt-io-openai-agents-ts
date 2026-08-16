@@ -157,10 +157,8 @@ describe("the approval round trip", () => {
           name: "risky",
           reason: {
             message: 'May I run `risky`?\n```\n{\n  "action": "wipe"\n}\n```',
-            options: [
-              { value: "approve", label: "Approve", style: "primary" },
-              { value: "reject", label: "Reject", style: "danger" },
-            ],
+            approve: {},
+            reject: {},
           },
         },
       },
@@ -172,7 +170,7 @@ describe("the approval round trip", () => {
     const stopped = await interrupted();
 
     const { events } = await resumed(stopped, {
-      call_1: { value: "approve", source: "option" },
+      call_1: { value: true, source: "option" },
     });
 
     assert.deepEqual(ran, ["wipe"]);
@@ -201,7 +199,7 @@ describe("the approval round trip", () => {
     const stopped = await interrupted();
 
     const { seen } = await resumed(stopped, {
-      call_1: { value: "reject", source: "option" },
+      call_1: { value: false, source: "option" },
     });
 
     assert.deepEqual(ran, []);
@@ -227,7 +225,7 @@ describe("the approval round trip", () => {
     assert.throws(
       () =>
         decodeInterruptResponses(
-          { call_404: { value: "approve", source: "option" } },
+          { call_404: { value: true, source: "option" } },
           stopped.state,
         ),
       /call_404/,
