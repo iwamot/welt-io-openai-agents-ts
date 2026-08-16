@@ -67,8 +67,8 @@ for (const [name, range] of Object.entries(peerDependencies)) {
 # the files as they are (not as git has them, so uncommitted edits survive) and
 # put them back on the way out. -W says the swap belongs to the workspace root.
 SNAP=$(mktemp -d)
-cp package.json aube-lock.yaml "$SNAP/"
-trap 'cp "$SNAP"/package.json "$SNAP"/aube-lock.yaml .; rm -rf "$TMP" "$SNAP"; rm -f "$TARBALL"' EXIT
+cp package.json pnpm-lock.yaml "$SNAP/"
+trap 'cp "$SNAP"/package.json "$SNAP"/pnpm-lock.yaml .; rm -rf "$TMP" "$SNAP"; rm -f "$TARBALL"' EXIT
 aube add -D -W --no-save "${floors[@]}"
 
 # --no-install because `aube run` otherwise reinstalls first, which would put
