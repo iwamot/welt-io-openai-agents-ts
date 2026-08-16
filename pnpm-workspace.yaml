@@ -1,2 +1,11 @@
+defaultLockfileFormat: pnpm
+
+# Releases published without provenance after an earlier one carried it.
+# @smithy/core has provenance again from 3.33.2, so these exclusions go away
+# once the tree moves past the versions named here.
+trustPolicyExclude:
+  - '@smithy/core@3.33.0'
+  - '@smithy/node-http-handler@4.11.0'
+
 packages:
   - examples/agent
