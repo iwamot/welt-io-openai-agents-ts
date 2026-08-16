@@ -503,10 +503,8 @@ describe("interrupts", () => {
           name: "risky",
           reason: {
             message: 'May I run `risky`?\n```\n{\n  "action": "wipe"\n}\n```',
-            options: [
-              { value: "approve", label: "Approve", style: "primary" },
-              { value: "reject", label: "Reject", style: "danger" },
-            ],
+            approve: {},
+            reject: {},
           },
         },
       },

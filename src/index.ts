@@ -191,17 +191,14 @@ function decodedBlock(block: WireBlock): protocol.UserContent {
 
 /**
  * One answer of Welt's resume payload: what it was, and where from. Every
- * question this adapter builds offers only buttons, so the answer is
- * always a pressed one, carrying back whatever its option declared.
+ * question this adapter builds offers only Welt's own approve and reject
+ * buttons, so the answer is always a pressed one, carrying back the
+ * `true` or `false` they answer with.
  */
 export interface InterruptAnswer {
   value: unknown;
   source: "option";
 }
-
-// The button values of the approval question this adapter builds, matched
-// against the answer on the way back.
-const APPROVE = "approve";
 
 /**
  * What `decodeInterruptResponses` uses of the interrupted `RunState`.
@@ -254,7 +251,7 @@ export function decodeInterruptResponses<StateT extends InterruptedState>(
     if (item === undefined) {
       throw new Error(`no pending approval for interrupt id: ${interruptId}`);
     }
-    if (answer.value === APPROVE) {
+    if (answer.value === true) {
       state.approve(item);
     } else {
       state.reject(item);
@@ -299,7 +296,8 @@ export interface InterruptEvent {
 /** The structured reason of the approval question this adapter builds. */
 interface InterruptReason {
   message: string;
-  options: { value: string; label: string; style: "primary" | "danger" }[];
+  approve: Record<string, never>;
+  reject: Record<string, never>;
 }
 
 /** An event of the wire's renderable subset. */
@@ -342,8 +340,8 @@ export interface StreamedRun extends AsyncIterable<RunStreamEvent> {
  * returned). Reasoning items and everything else are dropped. A run that
  * stops on tool approvals ends with one `interrupt` event per pending
  * approval, read from the run after its stream closes — the reason
- * renders in Slack as the call's name and arguments over **Approve** /
- * **Reject** buttons.
+ * renders in Slack as the call's name and arguments over the approve and
+ * reject buttons Welt words itself.
  *
  * Which of the agent's files belong in the reply is the agent's call, so
  * a tool's files become `file` events only when the tool is named in
@@ -469,12 +467,13 @@ function interruptEvents(
  *
  * The SDK's interrupts are tool approvals — no agent code declares a
  * question of its own — so the question's shape is fixed here: the
- * call's name and arguments as the message, the two decisions the state
- * resumes from as buttons carrying the values that identify them on the
- * way back. Deliberately no free-text field: the SDK runs an approved
- * tool with its original arguments or skips it, so typed text has
- * nowhere to go — a field would collect answers that can only reject,
- * and one that reads as consent ("yes!") would reject all the same.
+ * call's name and arguments as the message, and the two decisions the
+ * state resumes from asked of Welt by name, so that what approval is
+ * called stays Welt's to say. Deliberately no free-text field: the SDK
+ * runs an approved tool with its original arguments or skips it, so
+ * typed text has nowhere to go — a field would collect answers that can
+ * only reject, and one that reads as consent ("yes!") would reject all
+ * the same.
  */
 function approvalReason(approval: RunToolApprovalItem): InterruptReason {
   const name = approval.name;
@@ -486,13 +485,7 @@ function approvalReason(approval: RunToolApprovalItem): InterruptReason {
   if (formatted !== "") {
     message = `${message}\n\`\`\`\n${formatted}\n\`\`\``;
   }
-  return {
-    message,
-    options: [
-      { value: APPROVE, label: "Approve", style: "primary" },
-      { value: "reject", label: "Reject", style: "danger" },
-    ],
-  };
+  return { message, approve: {}, reject: {} };
 }
 
 /**
