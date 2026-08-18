@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@openai/agents':
-        specifier: 0.16.0
-        version: 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+        specifier: 0.16.1
+        version: 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -24,8 +24,8 @@ importers:
   examples/agent:
     dependencies:
       '@openai/agents':
-        specifier: 0.16.0
-        version: 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+        specifier: 0.16.1
+        version: 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       '@welt-io/openai-agents':
         specifier: workspace:*
         version: link:../..
@@ -182,26 +182,26 @@ packages:
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
     engines: {node: '>=20'}
 
-  '@openai/agents-core@0.16.0':
-    resolution: {integrity: sha512-k0ioc6IM36Yli/Wwe/6uFdU85EPj45RVaj+0oSSqrmZEtgwrPCYA2Ohe8LVol//IaM25QjqE09mhiRD74tE8IQ==}
+  '@openai/agents-core@0.16.1':
+    resolution: {integrity: sha512-h6X7P95NP/uLwGvWTRg2gHYZ5peB4662s+yDn894gIyC1XUH+B9olJyZy6+pdTVJNq4V9Thi7A43PeYFe8S4LA==}
     peerDependencies:
       zod: ^4.0.0
     peerDependenciesMeta:
       zod:
         optional: true
 
-  '@openai/agents-openai@0.16.0':
-    resolution: {integrity: sha512-YzhEuqpPevhoiiCOjPsfSUFiTYO/Nw8H3owTHSckU3IEYgtM+ZPfzOba7zjJpai0cqaAuS6Vvm2Gy7nvyeOv5A==}
+  '@openai/agents-openai@0.16.1':
+    resolution: {integrity: sha512-1Ma6Md3eIQMZSGKJPMiCKu6pVsVQu4HdYnw/M/kLlO5OAWbHEEBqnDsDr597qJ83+LSHm08oUWHllkx+LQ/UAA==}
     peerDependencies:
       zod: ^4.0.0
 
-  '@openai/agents-realtime@0.16.0':
-    resolution: {integrity: sha512-p5JdmsoSIfCkHKULBJ3Lh2VgLZ6Pg9kB/kyShtgvARZt2ntpU7KBPPI/0qWNPcJxkPVtlnFYn7EKgsKKvK3CJA==}
+  '@openai/agents-realtime@0.16.1':
+    resolution: {integrity: sha512-q9E4eQf5FtzTMx/XQE5RA3HAvjl01lKz2BKvNJYdHCuQ6h9T/Pa/LDK7nV5e1dxsJCw+7aaKwCZVbhmtFeguIw==}
     peerDependencies:
       zod: ^4.0.0
 
-  '@openai/agents@0.16.0':
-    resolution: {integrity: sha512-IINrp7Iajg6sHIoh56jD0WqIszk0+lEkyj/sWsNZgT/m6oFEuZC5UHsOhQX7Rc6uUhRyEQE7knzk8iyxpWd+Dg==}
+  '@openai/agents@0.16.1':
+    resolution: {integrity: sha512-L1ROwfXhoqiLCwtOp1E2tEluK2GRmq/LsQyoRGGFN/BjYYbyNMtLn6afuaULEIOdFC6treHdNtiEQaCt5I6rdg==}
     peerDependencies:
       zod: ^4.0.0
 
@@ -1007,7 +1007,7 @@ snapshots:
       zod: 4.4.3
     optional: true
 
-  '@openai/agents-core@0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
+  '@openai/agents-core@0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       debug: 4.4.3
@@ -1022,9 +1022,9 @@ snapshots:
       - supports-color
       - ws
 
-  '@openai/agents-openai@0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
+  '@openai/agents-openai@0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+      '@openai/agents-core': 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       debug: 4.4.3
       openai: 7.4.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       zod: 4.4.3
@@ -1035,9 +1035,9 @@ snapshots:
       - supports-color
       - ws
 
-  '@openai/agents-realtime@0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(zod@4.4.3)':
+  '@openai/agents-realtime@0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+      '@openai/agents-core': 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.21.3
@@ -1050,11 +1050,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@openai/agents@0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
+  '@openai/agents@0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
-      '@openai/agents-openai': 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
-      '@openai/agents-realtime': 0.16.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(zod@4.4.3)
+      '@openai/agents-core': 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+      '@openai/agents-openai': 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
+      '@openai/agents-realtime': 0.16.1(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(zod@4.4.3)
       debug: 4.4.3
       openai: 7.4.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)
       zod: 4.4.3
