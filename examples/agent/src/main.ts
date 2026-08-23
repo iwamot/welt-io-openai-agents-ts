@@ -24,7 +24,7 @@ import type { RunState } from "@openai/agents";
 import {
   Agent,
   OpenAIProvider,
-  run,
+  Runner,
   setTracingDisabled,
   tool,
 } from "@openai/agents";
@@ -163,10 +163,16 @@ const provider = new OpenAIProvider({
   useResponses: false,
 });
 
+// Resolves the agent's model name against the endpoint. A `Runner` rather
+// than the `run()` helper because the name is resolved per run, keeping
+// this module free of top-level await — the CodeZip packager bundles to
+// CommonJS, which cannot represent one.
+const runner = new Runner({ modelProvider: provider });
+
 const agent = new Agent({
   // Any model on the endpoint's /v1/models listing the account may
   // invoke; an empty MODEL_ID means unset, like Welt's own variables.
-  model: await provider.getModel(process.env.MODEL_ID || "openai.gpt-oss-120b"),
+  model: process.env.MODEL_ID || "openai.gpt-oss-120b",
   name: "welt-example",
   // A rejected approval reaches the model as the tool's result ("Tool
   // execution was not approved."), and models of several families read
@@ -211,7 +217,9 @@ const app = new BedrockAgentCoreApp({
     process: async function* (payload: unknown) {
       const envelope = payload as WeltPayload;
 
-      let result: Awaited<ReturnType<typeof run<typeof agent, undefined>>>;
+      let result: Awaited<
+        ReturnType<typeof runner.run<typeof agent, undefined>>
+      >;
       if ("interrupt_responses" in envelope) {
         const state = interruptedState;
         interruptedState = null;
@@ -221,13 +229,13 @@ const app = new BedrockAgentCoreApp({
           // resume-failure notice.
           throw new Error("No interrupted run to resume in this session.");
         }
-        result = await run(
+        result = await runner.run(
           agent,
           decodeInterruptResponses(envelope.interrupt_responses, state),
           { stream: true },
         );
       } else {
-        result = await run(agent, decodeMessages(envelope.messages), {
+        result = await runner.run(agent, decodeMessages(envelope.messages), {
           stream: true,
         });
       }
