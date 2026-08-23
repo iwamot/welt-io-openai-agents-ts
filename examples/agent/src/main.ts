@@ -2,11 +2,12 @@
  * A small AgentCore agent that Welt can drive.
  *
  * Receives Welt's payload, feeds it to an OpenAI Agents SDK run, and
- * yields the renderable subset of its stream — BedrockAgentCoreApp emits
- * each event as SSE, which Welt (https://github.com/iwamot/welt) renders
- * into Slack. The payload carries one of two envelopes: Converse-shaped
- * `messages` for a conversation turn, or `interrupt_responses` when a
- * human answered the approval buttons of an interrupted run.
+ * streams back the renderable subset of its stream — BedrockAgentCoreApp
+ * emits each event as SSE, which Welt (https://github.com/iwamot/welt)
+ * renders into Slack. `weltAgent` is the whole connection: it reads
+ * which envelope Welt sent (a conversation turn, or the answers that
+ * resume an interrupted run), runs the agent, and keeps an interrupted
+ * run until its answers arrive.
  *
  * The model runs on Amazon Bedrock through the OpenAI-compatible
  * `bedrock-mantle` endpoint, so the OpenAI client needs nothing beyond a
@@ -18,9 +19,7 @@
  * directions.
  */
 
-import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import type { RunState } from "@openai/agents";
 import {
   Agent,
   OpenAIProvider,
@@ -28,17 +27,7 @@ import {
   setTracingDisabled,
   tool,
 } from "@openai/agents";
-import type {
-  FileEvent,
-  InterruptAnswer,
-  RenderableEvent,
-  WireMessage,
-} from "@welt-io/openai-agents";
-import {
-  decodeInterruptResponses,
-  decodeMessages,
-  renderableEvents,
-} from "@welt-io/openai-agents";
+import { sendFile, weltAgent } from "@welt-io/openai-agents/agentcore";
 import { BedrockAgentCoreApp } from "bedrock-agentcore/runtime";
 import { z } from "zod";
 
@@ -53,28 +42,20 @@ const currentTime = tool({
   execute: () => new Date().toISOString(),
 });
 
-// Files the tools made this turn, on their way to the thread. Bedrock's
-// OpenAI-compatible endpoint takes a tool's output only as a string — the
-// file content parts the OpenAI platform accepts there are rejected as
-// malformed — so a tool on this stack cannot hand its file to the model.
-// It hands the thread the file directly instead: the tool queues it here,
-// and the entrypoint puts it on the wire beside the tool's own result.
-const pendingFiles: FileEvent["file"][] = [];
-
 const createSampleFile = tool({
   name: "create_sample_file",
   description: "Create a small sample CSV file.",
   parameters: z.object({}),
-  // The result string carries the file's exact content — it is the one
-  // channel this endpoint gives the model, and a model that never saw the
-  // content would describe the upload by making one up. The file itself
-  // goes to the Slack thread.
+  // Bedrock's OpenAI-compatible endpoint takes a tool's output only as a
+  // string — the file content parts the OpenAI platform accepts there are
+  // rejected as malformed — so a tool on this stack cannot hand its file
+  // to the model. `sendFile` hands the thread the file directly instead,
+  // and the result string carries the file's exact content — it is the
+  // one channel this endpoint gives the model, and a model that never saw
+  // the content would describe the upload by making one up.
   execute: () => {
     const csv = "fruit,count\napple,3\nbanana,5\n";
-    pendingFiles.push({
-      name: "sample.csv",
-      bytes: Buffer.from(csv).toString("base64"),
-    });
+    sendFile("sample.csv", new TextEncoder().encode(csv));
     return (
       "Created sample.csv and sent it to the Slack thread." +
       ` Its exact content is:\n${csv}`
@@ -110,10 +91,7 @@ const sampleDraftReport = tool({
   needsApproval: true,
   execute: ({ draft }) => {
     const name = documentName("report");
-    pendingFiles.push({
-      name: `${name}.md`,
-      bytes: Buffer.from(draft).toString("base64"),
-    });
+    sendFile(`${name}.md`, new TextEncoder().encode(draft));
     return (
       `Published the approved draft to the Slack thread as ${name}.md.` +
       " The publish flow is complete; nothing is left to approve."
@@ -136,7 +114,7 @@ const sampleDangerousAction = tool({
   // actually executed.
   needsApproval: true,
   execute: ({ action }) =>
-    `Ran: ${action}. (This example doesn't actually run anything.)`,
+    `Ran: ${action}. Completed successfully (simulated by this demo tool).`,
 });
 
 // Bedrock's OpenAI-compatible endpoint, in the region the environment
@@ -191,84 +169,8 @@ const agent = new Agent({
   ],
 });
 
-// Where an interrupted run waits for its answers. One slot is enough:
-// AgentCore Runtime runs each session in its own microVM, so this process
-// never serves two sessions. Resume only: a normal turn always runs on
-// the messages Welt sends (the Slack thread is the source of truth for
-// conversation history, so the state must not stand in for it). No
-// persistence either — the slot lives and dies with the session's microVM
-// (recycled on idle timeout, 8 hours at most).
-let interruptedState: RunState<undefined, typeof agent> | null = null;
-
-/**
- * Welt's payload, which carries one of the two envelopes.
- *
- * What Welt sends is taken as correct: it checks its own output against
- * the wire contract before sending it, so this says what arrives rather
- * than checking it. A payload carrying neither key is Welt's bug, and the
- * error it raises is reported as an `error` event by the SDK.
- */
-type WeltPayload =
-  | { messages: WireMessage[] }
-  | { interrupt_responses: Record<string, InterruptAnswer> };
-
 const app = new BedrockAgentCoreApp({
-  invocationHandler: {
-    process: async function* (payload: unknown) {
-      const envelope = payload as WeltPayload;
-
-      let result: Awaited<
-        ReturnType<typeof runner.run<typeof agent, undefined>>
-      >;
-      if ("interrupt_responses" in envelope) {
-        const state = interruptedState;
-        interruptedState = null;
-        if (state === null) {
-          // The microVM was recycled while the buttons waited. The SDK
-          // reports the throw as an `error` event, and Welt renders its
-          // resume-failure notice.
-          throw new Error("No interrupted run to resume in this session.");
-        }
-        result = await runner.run(
-          agent,
-          decodeInterruptResponses(envelope.interrupt_responses, state),
-          { stream: true },
-        );
-      } else {
-        result = await runner.run(agent, decodeMessages(envelope.messages), {
-          stream: true,
-        });
-      }
-
-      let interrupted = false;
-      // Reduce the stream to the JSON-serializable events Welt renders.
-      // Each one is wrapped as `{data: event}`: the AgentCore SDK treats a
-      // yielded object's `data` field as the SSE data payload, so the
-      // wrapper puts the wire event itself — text events included, whose
-      // own `data` key would otherwise be mistaken for the envelope — on
-      // the `data:` line.
-      for await (const event of renderableEvents(result)) {
-        if ("interrupt" in event) {
-          interrupted = true;
-        }
-        yield { data: event } as { data: RenderableEvent };
-        // The files the tools queued ride the wire beside their results —
-        // see pendingFiles for why they do not ride the tool outputs.
-        while (pendingFiles.length > 0) {
-          const file = pendingFiles.shift();
-          if (file !== undefined) {
-            yield { data: { file } };
-          }
-        }
-      }
-
-      if (interrupted) {
-        // Re-stashed on every interrupted stop, so a resume that
-        // interrupts again keeps working.
-        interruptedState = result.state;
-      }
-    },
-  },
+  invocationHandler: weltAgent(agent, { runner }),
 });
 
 app.run();
