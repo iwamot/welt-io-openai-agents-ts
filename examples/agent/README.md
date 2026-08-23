@@ -39,8 +39,8 @@ cd WeltExample
 agentcore add agent --name WeltExample --type create --build CodeZip --language TypeScript --framework Strands --model-provider Bedrock --memory none
 
 curl -o app/WeltExample/main.ts https://raw.githubusercontent.com/iwamot/welt-io-openai-agents-ts/main/examples/agent/src/main.ts
-npm --prefix app/WeltExample install @welt-io/openai-agents @openai/agents zod
 npm --prefix app/WeltExample uninstall @strands-agents/sdk
+npm --prefix app/WeltExample install @welt-io/openai-agents @openai/agents zod
 
 agentcore deploy
 ```
