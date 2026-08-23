@@ -7,7 +7,7 @@ The example agent for [Welt](https://github.com/iwamot/welt): the smallest compl
 | Package | Role |
 |---------|------|
 | [Bedrock AgentCore SDK](https://github.com/aws/bedrock-agentcore-sdk-typescript) | Serves the endpoint |
-| [OpenAI Agents SDK](https://openai.github.io/openai-agents-js/) | Runs the model and the tools (`run` with `stream: true`) |
+| [OpenAI Agents SDK](https://openai.github.io/openai-agents-js/) | Runs the model and the tools (`Runner.run` with `stream: true`) |
 | @welt-io/openai-agents | Adapts the wire to Welt |
 
 The model runs on Amazon Bedrock through the OpenAI-compatible [`bedrock-mantle` endpoint](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) — the SDK's OpenAI provider gets a different base URL and a Bedrock API key, and no OpenAI account is involved. The provider is set to the Chat Completions API rather than the Responses API: this SDK sends assistant history to the Responses API as output items, a form the endpoint's validation rejects, so every turn after the first would fail there. A model this endpoint serves only through the Responses API (the Anthropic models, for one) is therefore out of reach for this example — it refuses the chat API outright, and the Responses path breaks on the second turn. To run against another OpenAI-compatible service instead, change the base URL in `main.ts` and the key it is paired with.
