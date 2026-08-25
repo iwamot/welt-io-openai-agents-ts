@@ -4,10 +4,12 @@
  * Receives Welt's payload, feeds it to an OpenAI Agents SDK run, and
  * streams back the renderable subset of its stream — BedrockAgentCoreApp
  * emits each event as SSE, which Welt (https://github.com/iwamot/welt)
- * renders into Slack. `weltAgent` is the whole connection: it reads
- * which envelope Welt sent (a conversation turn, or the answers that
- * resume an interrupted run), runs the agent, and keeps an interrupted
- * run until its answers arrive.
+ * renders into Slack.
+ *
+ * `startReply` reads which envelope Welt sent (a conversation turn, or
+ * the answers that resume an interrupted run), decodes it, and starts the
+ * run; `renderableEvents` reduces what it streams. Keeping an interrupted
+ * run until its buttons are answered is this file's job, below.
  *
  * The model runs on Amazon Bedrock through the OpenAI-compatible
  * `bedrock-mantle` endpoint, so the OpenAI client needs nothing beyond a
@@ -27,7 +29,8 @@ import {
   setTracingDisabled,
   tool,
 } from "@openai/agents";
-import { sendFile, weltAgent } from "@welt-io/openai-agents/agentcore";
+import type { InterruptedState } from "@welt-io/openai-agents";
+import { renderableEvents, startReply } from "@welt-io/openai-agents";
 import { BedrockAgentCoreApp } from "bedrock-agentcore/runtime";
 import { z } from "zod";
 
@@ -46,21 +49,22 @@ const createSampleFile = tool({
   name: "create_sample_file",
   description: "Create a small sample CSV file.",
   parameters: z.object({}),
-  // Bedrock's OpenAI-compatible endpoint takes a tool's output only as a
-  // string — the file content parts the OpenAI platform accepts there are
-  // rejected as malformed — so a tool on this stack cannot hand its file
-  // to the model. `sendFile` hands the thread the file directly instead,
-  // and the result string carries the file's exact content — it is the
-  // one channel this endpoint gives the model, and a model that never saw
-  // the content would describe the upload by making one up.
-  execute: () => {
-    const csv = "fruit,count\napple,3\nbanana,5\n";
-    sendFile("sample.csv", new TextEncoder().encode(csv));
-    return (
-      "Created sample.csv and sent it to the Slack thread." +
-      ` Its exact content is:\n${csv}`
-    );
-  },
+  // A tool returns a file as content parts beside its text, which reach
+  // the model — and the Slack thread, because this tool is named in
+  // `filesFrom` below.
+  execute: () => [
+    { type: "text" as const, text: "Created sample.csv." },
+    {
+      type: "file" as const,
+      file: {
+        data: Buffer.from("fruit,count\napple,3\nbanana,5\n").toString(
+          "base64",
+        ),
+        mediaType: "text/csv",
+        filename: "sample.csv",
+      },
+    },
+  ],
 });
 
 /**
@@ -91,11 +95,22 @@ const sampleDraftReport = tool({
   needsApproval: true,
   execute: ({ draft }) => {
     const name = documentName("report");
-    sendFile(`${name}.md`, new TextEncoder().encode(draft));
-    return (
-      `Published the approved draft to the Slack thread as ${name}.md.` +
-      " The publish flow is complete; nothing is left to approve."
-    );
+    return [
+      {
+        type: "text" as const,
+        text:
+          `Published the approved draft as ${name}.md.` +
+          " The publish flow is complete; nothing is left to approve.",
+      },
+      {
+        type: "file" as const,
+        file: {
+          data: Buffer.from(draft).toString("base64"),
+          mediaType: "text/markdown",
+          filename: `${name}.md`,
+        },
+      },
+    ];
   },
 });
 
@@ -130,15 +145,14 @@ if (!apiKey) {
 }
 
 const provider = new OpenAIProvider({
-  baseURL: `https://bedrock-mantle.${REGION}.api.aws/v1`,
+  // The multimodal models live on this endpoint's `/openai/v1` path,
+  // which is not the `/v1` the rest of it serves.
+  baseURL: `https://bedrock-mantle.${REGION}.api.aws/openai/v1`,
   apiKey,
-  // Chat Completions rather than Responses. This SDK sends assistant
-  // history to the Responses API as output items, a form this endpoint's
-  // validation rejects — it takes assistant turns only as plain
-  // role/content messages, which is how the chat API carries all history.
-  // Every turn after the first would otherwise fail. (The OpenAI platform
-  // accepts both, so against it this line is a free choice.)
-  useResponses: false,
+  // The Responses API rather than Chat Completions: a tool's file rides
+  // its result there, and a tool message on the chat API carries text
+  // alone.
+  useResponses: true,
 });
 
 // Resolves the agent's model name against the endpoint. A `Runner` rather
@@ -148,9 +162,10 @@ const provider = new OpenAIProvider({
 const runner = new Runner({ modelProvider: provider });
 
 const agent = new Agent({
-  // Any model on the endpoint's /v1/models listing the account may
-  // invoke; an empty MODEL_ID means unset, like Welt's own variables.
-  model: process.env.MODEL_ID || "openai.gpt-oss-120b",
+  // Any model the account may invoke that serves `/openai/v1/responses`
+  // and reads files; an empty MODEL_ID means unset, like Welt's own
+  // variables.
+  model: process.env.MODEL_ID || "google.gemma-4-31b",
   name: "welt-example",
   // A rejected approval reaches the model as the tool's result ("Tool
   // execution was not approved."), and models of several families read
@@ -169,8 +184,69 @@ const agent = new Agent({
   ],
 });
 
+// The tools whose files belong in the Slack thread. A tool left out keeps
+// its files to the model.
+const FILES_FROM = ["create_sample_file", "sample_draft_report"];
+
+// The states of the runs that stopped for approval, under the ids of the
+// approvals they stopped on — Welt sends those ids back when the buttons
+// are answered. An entry lives as long as this process: AgentCore Runtime
+// gives each session its own microVM, so a resume that arrives after it
+// was recycled finds nothing and throws, which Welt renders as its
+// resume-failure notice.
+const interrupted = new Map<string, InterruptedState>();
+
+/**
+ * Take the run the answered approvals belong to out of the map.
+ *
+ * A stop's questions are answered together, so every id in one payload
+ * names the same run — the first answered id found held settles which.
+ * The whole stop leaves the map with it, before the resume runs. An
+ * answered id the map no longer holds means this process lost the run,
+ * so there is nothing left to resume.
+ */
+function resumed(answers: Readonly<Record<string, unknown>>): InterruptedState {
+  const state = Object.keys(answers)
+    .map((id) => interrupted.get(id))
+    .find((held) => held !== undefined);
+  if (state === undefined) {
+    throw new Error("No interrupted run to resume in this session.");
+  }
+  for (const [id, held] of interrupted) {
+    if (held === state) {
+      interrupted.delete(id);
+    }
+  }
+  return state;
+}
+
 const app = new BedrockAgentCoreApp({
-  invocationHandler: weltAgent(agent, { runner }),
+  invocationHandler: {
+    async *process(payload: unknown) {
+      const envelope = payload as {
+        interrupt_responses?: Record<string, unknown>;
+      };
+      const answers = envelope.interrupt_responses;
+
+      const run = await startReply(agent, payload, {
+        runner,
+        ...(answers === undefined ? {} : { state: resumed(answers) }),
+      });
+
+      for await (const event of renderableEvents(run, {
+        filesFrom: FILES_FROM,
+      })) {
+        if ("interrupt" in event) {
+          // The run stopped here, and its state is what answers this
+          // question when the buttons come back.
+          interrupted.set(event.interrupt.id, run.state);
+        }
+        // The AgentCore Runtime SDK puts a yielded object's `data` field
+        // on the SSE `data:` line.
+        yield { data: event };
+      }
+    },
+  },
 });
 
 app.run();
