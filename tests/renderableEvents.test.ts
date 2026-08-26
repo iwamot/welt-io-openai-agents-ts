@@ -426,6 +426,19 @@ describe("files", () => {
     assert.deepEqual(await named("data:text/plain;base64,aGk="), [
       { file: { name: "file.txt", bytes: "aGk=" } },
     ]);
+    // A media subtype is not an extension in general, so the media types
+    // the wire carries are named from the whole thing.
+    assert.deepEqual(await named("data:application/msword;base64,aGk="), [
+      { file: { name: "file.doc", bytes: "aGk=" } },
+    ]);
+    assert.deepEqual(await named("data:application/vnd.ms-excel;base64,aGk="), [
+      { file: { name: "file.xls", bytes: "aGk=" } },
+    ]);
+    // A media type the wire never carries still gets its subtype, when
+    // that reads as an extension.
+    assert.deepEqual(await named("data:application/json;base64,aGk="), [
+      { file: { name: "file.json", bytes: "aGk=" } },
+    ]);
     // A subtype that is no extension falls back to bin.
     assert.deepEqual(
       await named("data:application/vnd.oasis.opendocument.text;base64,aGk="),

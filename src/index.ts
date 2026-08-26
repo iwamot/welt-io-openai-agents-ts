@@ -516,13 +516,20 @@ function formattedArguments(argumentsText: string | undefined): string {
   return JSON.stringify(parsed, null, 2);
 }
 
-// Media subtypes double as filename extensions, except these.
-const EXTENSION_BY_SUBTYPE: Record<string, string> = {
-  "3gpp": "3gp",
-  markdown: "md",
-  plain: "txt",
-  quicktime: "mov",
-  "x-matroska": "mkv",
+// A media subtype is not a filename extension in general —
+// `application/vnd.ms-excel` and `application/msword` have none in them — so
+// extensions are keyed on the whole media type. The maps above supply every
+// one the wire carries, so the two cannot drift; the rest are video types a
+// tool may return, which the wire never carries here.
+const EXTENSION_BY_MEDIA_TYPE: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    [IMAGE_MIME_TYPES, DOCUMENT_MIME_TYPES].flatMap((mapping) =>
+      Object.entries(mapping).map(([format, mediaType]) => [mediaType, format]),
+    ),
+  ),
+  "video/3gpp": "3gp",
+  "video/quicktime": "mov",
+  "video/x-matroska": "mkv",
 };
 
 /**
@@ -685,12 +692,12 @@ function dataUrlParts(url: string): { mimeType: string; data: string } | null {
 /** Pick a filename extension for a media type. */
 function extension(mimeType: string | undefined): string {
   const slash = mimeType?.indexOf("/") ?? -1;
-  const subtype =
-    mimeType !== undefined && slash !== -1 ? mimeType.slice(slash + 1) : "";
-  const mapped = EXTENSION_BY_SUBTYPE[subtype];
-  if (mapped !== undefined) {
-    return mapped;
+  const mediaType = mimeType !== undefined && slash !== -1 ? mimeType : "";
+  const byMediaType = EXTENSION_BY_MEDIA_TYPE[mediaType];
+  if (byMediaType !== undefined) {
+    return byMediaType;
   }
+  const subtype = mediaType.slice(slash + 1);
   return /^[a-z0-9]+$/.test(subtype) ? subtype : "bin";
 }
 
