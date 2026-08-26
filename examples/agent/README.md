@@ -25,7 +25,9 @@ npm install @welt-io/openai-agents @openai/agents zod bedrock-agentcore
 AWS_BEARER_TOKEN_BEDROCK="<your Bedrock API key>" node main.ts
 ```
 
-The endpoint's region comes from `AWS_REGION` / `AWS_DEFAULT_REGION`, falling back to `us-east-1`. `MODEL_ID` takes any model the account may invoke that serves `/openai/v1/responses`; unset, the agent uses `google.gemma-4-31b`.
+`MODEL_ID` takes any model the account may invoke that serves `/openai/v1/responses`; unset, the agent uses `google.gemma-4-31b`.
+
+`BEDROCK_REGION` names the region the endpoint is reached in — useful locally, when the model access you want is not where your credentials point. Unset, the region comes from `AWS_REGION`, then `AWS_DEFAULT_REGION`, falling back to `us-east-1`.
 
 One difference from the cloud: AgentCore Runtime gives every session its own microVM, while the local server is a single process for all sessions — the interrupted run states this example keeps all share that one process, outlive the session that raised them, and accumulate while unanswered until the process exits.
 
@@ -45,7 +47,7 @@ npm --prefix app/WeltExample install @welt-io/openai-agents @openai/agents zod
 agentcore deploy
 ```
 
-The Strands template assumes AWS credentials for the model; this agent talks to Bedrock's OpenAI-compatible endpoint instead, so what the deployed runtime needs in its environment is `AWS_BEARER_TOKEN_BEDROCK` — a [Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) — plus `MODEL_ID` for a model other than the default `google.gemma-4-31b`. Neither takes a CLI flag: both go in the runtime's `envVars` array in `agentcore/agentcore.json`, added before `agentcore deploy` runs.
+The Strands template assumes AWS credentials for the model; this agent talks to Bedrock's OpenAI-compatible endpoint instead, so what the deployed runtime needs in its environment is `AWS_BEARER_TOKEN_BEDROCK` — a [Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) — plus `MODEL_ID` for a model other than the default `google.gemma-4-31b` and `BEDROCK_REGION` for an endpoint region other than the one the runtime resolves. None takes a CLI flag: they go in the runtime's `envVars` array in `agentcore/agentcore.json`, added before `agentcore deploy` runs.
 
 ```json
 "envVars": [

@@ -132,12 +132,17 @@ const sampleDangerousAction = tool({
     `Ran: ${action}. Completed successfully (simulated by this demo tool).`,
 });
 
-// Bedrock's OpenAI-compatible endpoint, in the region the environment
-// names (us-east-1 is mantle's home region, for environments that set
-// none). To run against another OpenAI-compatible service instead, change
-// the base URL and the key it is paired with.
+// Bedrock's OpenAI-compatible endpoint. BEDROCK_REGION names the region it
+// is reached in; unset, the region the environment names is used (us-east-1
+// is mantle's home region, for environments that set none). `||`, not `??`:
+// an empty value means unset, like Welt's own variables. To run against
+// another OpenAI-compatible service instead, change the base URL and the key
+// it is paired with.
 const REGION =
-  process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
+  process.env.BEDROCK_REGION ||
+  process.env.AWS_REGION ||
+  process.env.AWS_DEFAULT_REGION ||
+  "us-east-1";
 
 const apiKey = process.env.AWS_BEARER_TOKEN_BEDROCK;
 if (!apiKey) {
