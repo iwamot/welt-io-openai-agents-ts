@@ -44,12 +44,14 @@
 
 import { Buffer } from "node:buffer";
 import type {
+  Agent,
   AgentInputItem,
   protocol,
   RunStreamEvent,
   RunToolApprovalItem,
   RunToolCallOutputItem,
 } from "@openai/agents";
+import { Runner } from "@openai/agents";
 
 // The `type` of the warnings this package emits, which a
 // `process.on("warning", ...)` listener reads as the warning's `name`.
@@ -716,4 +718,100 @@ function fileEvent(
     return null;
   }
   return { file: { name, bytes: data } };
+}
+
+/** One streamed run: what `Runner.run(..., { stream: true })` returns. */
+export interface ResumableRun extends StreamedRun {
+  readonly state: InterruptedState;
+}
+
+/** What `startReply` takes beside the agent and the payload. */
+export interface StartReplyOptions {
+  /**
+   * The runner that starts the run — the place a model provider or run
+   * config lives. Omitted, a default `Runner` is constructed, which
+   * resolves models against the OpenAI platform.
+   */
+  runner?: Runner;
+  /**
+   * The state of the run being resumed, held by the caller since the
+   * stop that raised it. Required when the payload carries answers, and
+   * unused otherwise.
+   */
+  state?: InterruptedState;
+}
+
+/**
+ * Welt's payload, which carries one of the two envelopes.
+ *
+ * What Welt sends is taken as correct: it checks its own output against
+ * the wire contract before sending it, so this says what arrives rather
+ * than checking it. A payload carrying neither key is Welt's bug, and the
+ * error it raises is reported as an `error` event by the SDK.
+ */
+type WeltPayload =
+  | { messages: WireMessage[] }
+  | { interrupt_responses: Record<string, InterruptAnswer> };
+
+/**
+ * Start the run that replies to the payload Welt sent.
+ *
+ * ```ts
+ * const run = await startReply(agent, payload, { runner, state });
+ * for await (const event of renderableEvents(run, { filesFrom })) {
+ *   yield { data: event };
+ * }
+ * ```
+ *
+ * A conversation turn runs on the messages Welt sends, because the Slack
+ * thread is the source of truth for conversation history and the payload
+ * carries it whole. A resume runs on `state` — the state of the run that
+ * raised the interrupts — with the answers applied to it here.
+ *
+ * The run comes back rather than its events, because a run that stops for
+ * approval leaves its `state` behind and the caller is the one who knows
+ * where to keep it, and for how long.
+ *
+ * @param agent - The agent to run.
+ * @param payload - Welt's invocation payload.
+ * @param options - `runner`: the runner that starts the run; `state`: the
+ *   run being resumed.
+ * @returns The streamed run, for `renderableEvents` to reduce.
+ * @throws {Error} If the payload carries answers and no `state` came with
+ *   them — there is no run to resume.
+ */
+export async function startReply(
+  agent: Agent,
+  payload: unknown,
+  options?: StartReplyOptions,
+): Promise<ResumableRun> {
+  const runner = options?.runner ?? new Runner();
+  const envelope = payload as WeltPayload;
+
+  if ("interrupt_responses" in envelope) {
+    const state = options?.state;
+    if (state === undefined) {
+      throw new Error("startReply was given answers but no state to resume.");
+    }
+    return await startRun(
+      runner,
+      agent,
+      decodeInterruptResponses(envelope.interrupt_responses, state),
+    );
+  }
+  return await startRun(runner, agent, decodeMessages(envelope.messages));
+}
+
+/** Start one streamed run on a turn's input. */
+async function startRun(
+  runner: Runner,
+  agent: Agent,
+  input: ReturnType<typeof decodeMessages> | InterruptedState,
+): Promise<ResumableRun> {
+  // The one cast in this module: an interrupted state going back into
+  // `run` is the very state the run handed out, so the SDK's own input
+  // type for it holds by construction.
+  return await runner.run(agent, input as Parameters<Runner["run"]>[1], {
+    stream: true,
+  });
 }

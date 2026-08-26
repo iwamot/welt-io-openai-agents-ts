@@ -16,19 +16,30 @@ npm install @welt-io/openai-agents
 
 ## Usage
 
-`weltAgent` builds the whole AgentCore Runtime invocation handler for an agent Welt drives, so a deployable is your agent plus one mount line:
+`startReply` and `renderableEvents` are the wiring between Welt's payload and an OpenAI Agents run, so a deployable is your agent plus a short handler:
 
 ```ts
 import { Agent } from "@openai/agents";
-import { weltAgent } from "@welt-io/openai-agents/agentcore";
+import { renderableEvents, startReply } from "@welt-io/openai-agents";
 import { BedrockAgentCoreApp } from "bedrock-agentcore/runtime";
 
+const agent = new Agent({ name: "assistant" });
+
 const app = new BedrockAgentCoreApp({
-  invocationHandler: weltAgent(new Agent({ name: "assistant" })),
+  invocationHandler: {
+    async *process(payload: unknown) {
+      const run = await startReply(agent, payload);
+      for await (const event of renderableEvents(run)) {
+        yield { data: event };
+      }
+    },
+  },
 });
 
 app.run();
 ```
+
+An agent with approval tools keeps the run states it needs to resume; [`examples/agent`](examples/agent) shows that — a Map under the interrupt ids, filled as the stops go by and emptied when their answers arrive.
 
 See [`examples/agent`](examples/agent) for the full version — the smallest complete agent built on this package (text streaming, tool use, file output, file input, and human-approval tools), with the model on Amazon Bedrock's OpenAI-compatible endpoint instead of the OpenAI platform, wired in through the `runner` option. The sections below cover the handler and the adapters it wires in.
 
@@ -48,19 +59,17 @@ Something misbehaving inside that range is worth an [issue](https://github.com/i
 
 ## API
 
-The wire between Welt and the agent is JSON, specified by [Welt's wire contract](https://github.com/iwamot/welt/blob/main/docs/wire.md) — plain OpenAI Agents SDK values do not fit it in either direction. Two functions adapt the inbound payload, one the outbound stream. `weltAgent` wires all three into the invocation handler; reach for them directly when your handler needs a shape of its own.
+The wire between Welt and the agent is JSON, specified by [Welt's wire contract](https://github.com/iwamot/welt/blob/main/docs/wire.md) — plain OpenAI Agents SDK values do not fit it in either direction. Two functions adapt the inbound payload, one the outbound stream. `startReply` wires the inbound pair into a run; reach for them directly when your handler needs a shape of its own — messages to edit before the run, an agent to run some other way.
 
-### Handler
+### Reply
 
-#### `weltAgent(agent, { runner, filesFrom })`
+#### `startReply(agent, payload, { runner, state })`
 
-Builds the invocation handler `BedrockAgentCoreApp` takes. It reads which envelope Welt sent — Converse-shaped `messages` for a conversation turn, `interrupt_responses` for the answers that resume an interrupted run — runs the agent through the runner, and yields the events Welt renders, each wrapped as the SSE frame the AgentCore Runtime SDK emits.
+Starts the run that replies to Welt's payload. It reads which envelope Welt sent — Converse-shaped `messages` for a conversation turn, `interrupt_responses` for the answers that resume an interrupted run — decodes it, and runs the agent through the runner on the result. What comes back is the streamed run, for `renderableEvents` to reduce.
 
-The `runner` is where a model provider or run config lives — omitted, a default `Runner` resolves models against the OpenAI platform; the [example agent](examples/agent) hands one pointed at Bedrock's OpenAI-compatible endpoint. Every turn runs on the messages Welt sends: the Slack thread is the source of truth for conversation history, and the payload carries it whole. An interrupted run's state waits inside the handler for its answers — one slot, resume-only, living and dying with the session's microVM (recycled on idle timeout, 8 hours at most); resuming after that throws, which Welt renders as its resume-failure notice. `filesFrom` passes through to `renderableEvents` below.
+The `runner` is where a model provider or run config lives — omitted, a default `Runner` resolves models against the OpenAI platform; the [example agent](examples/agent) hands one pointed at Bedrock's OpenAI-compatible endpoint. A conversation turn runs on the messages Welt sends, because the Slack thread is the source of truth for conversation history and the payload carries it whole. A resume runs on `state`, the state of the run that raised the interrupts, with the answers applied to it — answers with no `state` beside them throw.
 
-#### `sendFile(name, data)`
-
-Queues one file for the Slack thread from inside a tool, riding the wire beside the reply being streamed. On Bedrock's OpenAI-compatible endpoint this is the one road a tool's file has — the endpoint takes tool output only as a string — and the model never sees what was sent either way, so a tool whose file matters to the conversation says what it holds in its result string; a model that never saw the content would describe the upload by making one up. Every turn starts with the queue empty, so a file a failed turn left behind never rides a later reply, and an empty name or empty bytes is refused where the tool is still on the stack — Slack refuses a zero-byte upload, and the whole reply fails with it.
+The run comes back rather than its events because a run that stops for approval leaves its `state` behind, and where to keep it — and for how long an unanswered approval stays answerable — is the agent's to decide. Nothing is held here.
 
 ### Inbound
 
@@ -95,7 +104,7 @@ The SDK resumes from the state rather than from a payload, which is why this ada
 
 An answer whose id names no pending approval of the state throws, since resuming the wrong run would act on questions nobody was asked.
 
-The interrupt ids are the tool calls' own ids, as emitted by `renderableEvents`; the state is stashed when an interrupt event goes by — `weltAgent` does this for you, and a handler of your own does the same.
+The interrupt ids are the tool calls' own ids, as emitted by `renderableEvents`; the handler stashes `run.state` when an interrupt event goes by, under those ids.
 
 #### What arrives is taken as correct
 
@@ -135,7 +144,7 @@ return [
 
 Uploaded names come from the part's own `filename`; parts without one are named by their media type when a data URL carries it (`file.pdf`, `image.png`). A part pointing at its file instead — a file id, an http URL — carries nothing to upload and stays off the wire.
 
-One caveat: whether a tool may return file content at all is the model endpoint's call, not this adapter's. The OpenAI platform accepts it; Bedrock's OpenAI-compatible endpoint takes a tool's output only as a string and rejects the request otherwise — so on Bedrock a tool cannot hand the model a file, and a file for the thread goes on the wire as a `file` event beside the events this function produces — `sendFile` above is that road.
+One caveat: whether a tool may return file content at all is the model endpoint's call, not this adapter's. The OpenAI platform accepts it, and so does Bedrock's `bedrock-mantle` endpoint on its `/openai/v1` path — the one the multimodal models are served from — through the Responses API. The same endpoint's `/v1` path takes a tool's output only as a string and rejects anything else, as does a tool message on the Chat Completions API either way.
 
 Each event carries only what Welt reads, and an event with nothing to render — a delta the model left empty, a file with no bytes — is not sent at all.
 
@@ -156,7 +165,7 @@ A run that stops on approvals ends its stream with one `interrupt` event per pen
 
 On the SDK side:
 
-- **Resume is a state round trip.** An interrupted streamed run exposes its `RunState` as `result.state`; `weltAgent` keeps that round trip for you. Done by hand, the host app stashes it, applies the answers with `decodeInterruptResponses`, and runs the same agent again with the state as input. An in-memory stash works on AgentCore Runtime, where each session keeps its own microVM.
+- **Resume is a state round trip.** An interrupted streamed run exposes its `RunState` as `run.state`. The host app stashes it, and hands it back to `startReply` with the answers, which applies them and runs the same agent again on it. An in-memory stash works on AgentCore Runtime, where each session keeps its own microVM.
 - **Welt resumes once every question is answered.** There is no partial resume on the wire, so the state's approvals are all applied in one call.
 - **Approved tools run on the resumed stream.** Each tool output names its own tool on this SDK, so `renderableEvents` needs nothing beyond the stream itself — their files keep flowing on resume as-is.
 
