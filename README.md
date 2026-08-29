@@ -82,9 +82,11 @@ Turns Welt's Converse-shaped messages — built from the Slack thread, file byte
 | Text | `input_text` (an assistant turn's text becomes the `output_text` of a completed assistant message) |
 | Image | `input_image` (a data URL) |
 | Document | `input_file` (a data URL, the document's name carried as `filename`) |
-| Video | Refused — the SDK has no video input |
+| Video | `input_file` (a data URL, named `video.<extension>`) |
 
-Each file-carrying block becomes the data URL the SDK expects in place of the Converse format token, and the base64 data stays base64 — a data URL carries it as it came. A video block throws rather than dropping silently: there is nothing to rebuild one into, and a silent drop would leave the model answering a conversation with a piece missing.
+Each file-carrying block becomes the data URL the SDK expects in place of the Converse format token, and the base64 data stays base64 — a data URL carries it as it came.
+
+The SDK has no video content type, so a video rides in the file slot. An endpoint that reads video types it by the filename's extension, which is why the name matters: Converse spells 3GP `three_gp`, and the file is named `video.3gp` rather than after the token. Whether a video is read at all is the endpoint's and the model's answer — Amazon Bedrock's OpenAI-compatible endpoint accepts `.mp4`, `.webm`, `.mov`, `.avi`, and `.mkv` — and a refusal arrives as the error it is, rather than being anticipated here.
 
 #### `decodeInterruptResponses(responses, state)`
 

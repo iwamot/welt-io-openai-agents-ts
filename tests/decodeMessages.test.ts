@@ -103,16 +103,51 @@ describe("decodeMessages", () => {
     );
   });
 
-  test("refuses a video block: the SDK has no video input", () => {
-    assert.throws(
-      () =>
-        decodeMessages([
-          {
-            role: "user",
-            content: [{ video: { format: "mp4", source: { bytes: "aGk=" } } }],
-          },
-        ]),
-      /no video input/,
+  test("turns a video block into an input_file named by its format", () => {
+    assert.deepEqual(
+      decodeMessages([
+        {
+          role: "user",
+          content: [{ video: { format: "mp4", source: { bytes: "aGk=" } } }],
+        },
+      ]),
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_file",
+              filename: "video.mp4",
+              file: "data:video/mp4;base64,aGk=",
+            },
+          ],
+        },
+      ],
+    );
+  });
+
+  test("names a video by its extension, not its format token", () => {
+    assert.deepEqual(
+      decodeMessages([
+        {
+          role: "user",
+          content: [
+            { video: { format: "three_gp", source: { bytes: "aGk=" } } },
+          ],
+        },
+      ]),
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_file",
+              filename: "video.3gp",
+              file: "data:video/3gpp;base64,aGk=",
+            },
+          ],
+        },
+      ],
     );
   });
 

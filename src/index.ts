@@ -65,6 +65,23 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   webp: "image/webp",
 };
 
+const VIDEO_MIME_TYPES: Record<string, string> = {
+  flv: "video/x-flv",
+  mkv: "video/x-matroska",
+  mov: "video/quicktime",
+  mp4: "video/mp4",
+  mpeg: "video/mpeg",
+  mpg: "video/mpeg",
+  three_gp: "video/3gpp",
+  webm: "video/webm",
+  wmv: "video/x-ms-wmv",
+};
+
+// A video format token is its own filename extension, with one exception:
+// Converse spells 3GP `three_gp`. The endpoint types an input_file by the
+// extension it is given, so the extension is what has to be right.
+const VIDEO_EXTENSIONS: Record<string, string> = { three_gp: "3gp" };
+
 const DOCUMENT_MIME_TYPES: Record<string, string> = {
   csv: "text/csv",
   doc: "application/msword",
@@ -105,20 +122,20 @@ export type WireMessage =
  * `input_image` / `input_file` content carrying a data URL instead of a
  * Converse format token plus base64 slot. This rebuilds each message
  * accordingly — text blocks become `input_text`, image blocks
- * `input_image`, and document blocks `input_file`, the document's name
- * (extension included) carried as `filename`. An assistant turn's text
- * becomes the `output_text` of a completed assistant message, which is
- * the shape the SDK gives the model's own past replies. The result feeds
- * `run` as-is.
+ * `input_image`, and document and video blocks both `input_file`, named
+ * so that the filename carries the format's extension. An assistant
+ * turn's text becomes the `output_text` of a completed assistant
+ * message, which is the shape the SDK gives the model's own past
+ * replies. The result feeds `run` as-is.
  *
- * Video blocks are refused: the SDK has no video input shape, so there
- * is nothing to rebuild one into — a silent drop would leave the model
- * answering a conversation with a piece missing.
+ * The SDK has no video content type, so a video rides in the file slot,
+ * where an endpoint that reads video types it by the filename's
+ * extension. Whether the model can read one is the model's and the
+ * endpoint's answer, not this adapter's.
  *
  * @param messages - The `messages` value of Welt's payload.
  * @returns Input items for `run`.
- * @throws {Error} If a block is of a kind Welt does not send, or a video
- *   block arrives.
+ * @throws {Error} If a block is of a kind Welt does not send.
  */
 export function decodeMessages(
   messages: readonly WireMessage[],
@@ -188,7 +205,16 @@ function decodedBlock(block: WireBlock): protocol.UserContent {
       file: `data:${mimeType};base64,${source.bytes}`,
     };
   }
-  throw new Error("the Agents SDK has no video input");
+  const { format, source } = block.video;
+  const mimeType = VIDEO_MIME_TYPES[format];
+  const extension = VIDEO_EXTENSIONS[format] ?? format;
+  // A video block carries no name of its own, and Welt embeds at most one
+  // video per payload, so a fixed name cannot collide with another.
+  return {
+    type: "input_file",
+    filename: `video.${extension}`,
+    file: `data:${mimeType};base64,${source.bytes}`,
+  };
 }
 
 /**
