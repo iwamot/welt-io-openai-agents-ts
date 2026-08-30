@@ -434,6 +434,18 @@ describe("files", () => {
     assert.deepEqual(await named("data:application/vnd.ms-excel;base64,aGk="), [
       { file: { name: "file.xls", bytes: "aGk=" } },
     ]);
+    // The video formats the wire carries are named from the whole media
+    // type too: two of them spell their subtype in a way no extension can
+    // be taken from, and 3GP is spelled `three_gp` on the wire.
+    assert.deepEqual(await named("data:video/x-flv;base64,aGk="), [
+      { file: { name: "file.flv", bytes: "aGk=" } },
+    ]);
+    assert.deepEqual(await named("data:video/x-ms-wmv;base64,aGk="), [
+      { file: { name: "file.wmv", bytes: "aGk=" } },
+    ]);
+    assert.deepEqual(await named("data:video/3gpp;base64,aGk="), [
+      { file: { name: "file.3gp", bytes: "aGk=" } },
+    ]);
     // A media type the wire never carries still gets its subtype, when
     // that reads as an extension.
     assert.deepEqual(await named("data:application/json;base64,aGk="), [
