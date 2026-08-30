@@ -542,21 +542,21 @@ function formattedArguments(argumentsText: string | undefined): string {
   return JSON.stringify(parsed, null, 2);
 }
 
-// A media subtype is not a filename extension in general —
-// `application/vnd.ms-excel` and `application/msword` have none in them — so
-// extensions are keyed on the whole media type. The maps above supply every
-// one the wire carries, so the two cannot drift; the rest are video types a
-// tool may return, which the wire never carries here.
-const EXTENSION_BY_MEDIA_TYPE: Readonly<Record<string, string>> = {
-  ...Object.fromEntries(
-    [IMAGE_MIME_TYPES, DOCUMENT_MIME_TYPES].flatMap((mapping) =>
-      Object.entries(mapping).map(([format, mediaType]) => [mediaType, format]),
+// The extension for every media type the wire's formats map to, built from
+// the maps above so the two cannot drift. A media subtype is not a filename
+// extension in general — `application/vnd.ms-excel` and `video/x-ms-wmv`
+// have none in them — which is why this is keyed on the whole media type.
+// Where two formats share one (mpeg and mpg), the last one named wins.
+const EXTENSION_BY_MEDIA_TYPE: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    [IMAGE_MIME_TYPES, DOCUMENT_MIME_TYPES, VIDEO_MIME_TYPES].flatMap(
+      (mapping) =>
+        Object.entries(mapping).map(([format, mediaType]) => [
+          mediaType,
+          VIDEO_EXTENSIONS[format] ?? format,
+        ]),
     ),
-  ),
-  "video/3gpp": "3gp",
-  "video/quicktime": "mov",
-  "video/x-matroska": "mkv",
-};
+  );
 
 /**
  * Build `file` events from a tool output's file-carrying content.
