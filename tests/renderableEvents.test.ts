@@ -266,6 +266,27 @@ describe("files", () => {
     );
   });
 
+  test("a file part with an empty filename is named by its media type", async () => {
+    assert.deepEqual(
+      await rendered(
+        [
+          new RunItemStreamEvent(
+            "tool_output",
+            outputItem({
+              type: "file",
+              file: { data: CSV, mediaType: "text/csv", filename: "" },
+            }),
+          ),
+        ],
+        filesFrom,
+      ),
+      [
+        { tool_result: { toolUseId: "call_1", status: "success" } },
+        { file: { name: "file.csv", bytes: CSV } },
+      ],
+    );
+  });
+
   test("a file part's raw bytes are encoded for the wire", async () => {
     assert.deepEqual(
       await rendered(
