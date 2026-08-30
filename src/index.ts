@@ -57,15 +57,44 @@ import { Runner } from "@openai/agents";
 // `process.on("warning", ...)` listener reads as the warning's `name`.
 const WARNING_TYPE = "WeltWarning";
 
+// The inbound format tokens are Converse's, which is what the wire carries
+// — a different vocabulary from the SDK's data URLs, which name media types.
+// Naming every token here is what makes the tables below total: a token the
+// wire adds later fails to compile until it has a media type, rather than
+// reaching the SDK as `data:undefined;base64,...`.
+type WireImageFormat = "gif" | "jpeg" | "png" | "webp";
+
+type WireDocumentFormat =
+  | "csv"
+  | "doc"
+  | "docx"
+  | "html"
+  | "md"
+  | "pdf"
+  | "txt"
+  | "xls"
+  | "xlsx";
+
+type WireVideoFormat =
+  | "flv"
+  | "mkv"
+  | "mov"
+  | "mp4"
+  | "mpeg"
+  | "mpg"
+  | "three_gp"
+  | "webm"
+  | "wmv";
+
 // The media types the SDK's data URLs carry, by Converse format token.
-const IMAGE_MIME_TYPES: Record<string, string> = {
+const IMAGE_MIME_TYPES: Readonly<Record<WireImageFormat, string>> = {
   gif: "image/gif",
   jpeg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
 };
 
-const VIDEO_MIME_TYPES: Record<string, string> = {
+const VIDEO_MIME_TYPES: Readonly<Record<WireVideoFormat, string>> = {
   flv: "video/x-flv",
   mkv: "video/x-matroska",
   mov: "video/quicktime",
@@ -80,9 +109,9 @@ const VIDEO_MIME_TYPES: Record<string, string> = {
 // A video format token is its own filename extension, with one exception:
 // Converse spells 3GP `three_gp`. The endpoint types an input_file by the
 // extension it is given, so the extension is what has to be right.
-const VIDEO_EXTENSIONS: Record<string, string> = { three_gp: "3gp" };
+const VIDEO_EXTENSIONS: Readonly<Record<string, string>> = { three_gp: "3gp" };
 
-const DOCUMENT_MIME_TYPES: Record<string, string> = {
+const DOCUMENT_MIME_TYPES: Readonly<Record<WireDocumentFormat, string>> = {
   csv: "text/csv",
   doc: "application/msword",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -94,18 +123,22 @@ const DOCUMENT_MIME_TYPES: Record<string, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
 
-// The inbound shapes, as far as the decoding below reads them. The wire's
-// format tokens are Converse's; the decoding needs only the ones it maps
-// to media types, so the token types stay strings.
+// The inbound shapes, as far as the decoding below reads them.
 interface WireSource {
   bytes: string;
 }
 
 type WireBlock =
   | { text: string }
-  | { image: { format: string; source: WireSource } }
-  | { document: { name: string; format: string; source: WireSource } }
-  | { video: { format: string; source: WireSource } };
+  | { image: { format: WireImageFormat; source: WireSource } }
+  | {
+      document: {
+        name: string;
+        format: WireDocumentFormat;
+        source: WireSource;
+      };
+    }
+  | { video: { format: WireVideoFormat; source: WireSource } };
 
 /**
  * One Converse-shaped message of Welt's payload. An assistant turn is one
