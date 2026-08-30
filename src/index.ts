@@ -618,7 +618,11 @@ function fileEventFromFile(
     );
   }
   if ("data" in file) {
-    return fileEvent(file.filename, encodedBytes(file.data), origin);
+    const name =
+      file.filename !== ""
+        ? file.filename
+        : `file.${extension(file.mediaType)}`;
+    return fileEvent(name, encodedBytes(file.data), origin);
   }
   // A URL or a file id points at the file; there is nothing to upload.
   return null;
