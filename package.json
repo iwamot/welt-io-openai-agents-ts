@@ -49,7 +49,7 @@
     "@openai/agents": ">=0.4.0"
   },
   "devDependencies": {
-    "@openai/agents": "0.17.2",
+    "@openai/agents": "0.18.0",
     "@types/node": "24.13.4",
     "typescript": "7.0.2",
     "zod": "4.6.2"
