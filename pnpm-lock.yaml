@@ -33,8 +33,8 @@ importers:
         specifier: workspace:*
         version: link:../..
       bedrock-agentcore:
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.4.4
+        version: 0.4.4
       zod:
         specifier: 4.6.2
         version: 4.6.2
@@ -447,8 +447,8 @@ packages:
   avvio@9.3.0:
     resolution: {integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==}
 
-  bedrock-agentcore@0.4.3:
-    resolution: {integrity: sha512-Ft66jLjMKlsP3/efepYrhoGU1+d2ccbpLiBU0PXtn1BCI1Lj2ounmi+pJRyaNDrtdJm9zjbdy+aKzpGZ/QQRMQ==}
+  bedrock-agentcore@0.4.4:
+    resolution: {integrity: sha512-0K7WbkBtJcFw3sA6h4K8O+JAgIJ4vmgEGAnfNeoO/62Yr3iRorUC5twAggKg0oJdB7qNBjqYpDZfJG5SXbZhLg==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@strands-agents/sdk': '>=1.5.0'
@@ -1276,7 +1276,7 @@ snapshots:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
 
-  bedrock-agentcore@0.4.3:
+  bedrock-agentcore@0.4.4:
     dependencies:
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/client-bedrock-agentcore': 3.1111.0
