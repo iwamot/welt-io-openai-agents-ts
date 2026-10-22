@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@openai/agents": "0.20.0",
+    "@openai/agents": "0.21.0",
     "@welt-io/openai-agents": "workspace:*",
     "bedrock-agentcore": "0.4.6",
     "zod": "4.6.7"
