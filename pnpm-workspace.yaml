@@ -1,5 +1,10 @@
 defaultLockfileFormat: pnpm
 
+# Resolve only versions published at least a day ago, both in aube and in the
+# pnpm that Renovate runs, and fail instead of falling back to a newer one.
+minimumReleaseAge: 1440  # 1 day
+minimumReleaseAgeStrict: true
+
 # Releases published without provenance after an earlier one carried it.
 # @smithy/core has provenance again from 3.33.2, so these exclusions go away
 # once the tree moves past the versions named here.
