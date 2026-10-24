@@ -4,11 +4,11 @@ The example agent for [Welt](https://github.com/iwamot/welt): the smallest compl
 
 ## Stack
 
-| Package | Role |
-|---------|------|
-| [Bedrock AgentCore SDK](https://github.com/aws/bedrock-agentcore-sdk-typescript) | Serves the endpoint |
-| [OpenAI Agents SDK](https://openai.github.io/openai-agents-js/) | Runs the model and the tools (`Runner.run` with `stream: true`) |
-| @welt-io/openai-agents | Adapts the wire to Welt |
+| Package                                                                          | Role                                                            |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [Bedrock AgentCore SDK](https://github.com/aws/bedrock-agentcore-sdk-typescript) | Serves the endpoint                                             |
+| [OpenAI Agents SDK](https://openai.github.io/openai-agents-js/)                  | Runs the model and the tools (`Runner.run` with `stream: true`) |
+| @welt-io/openai-agents                                                           | Adapts the wire to Welt                                         |
 
 The model runs on Amazon Bedrock through the OpenAI-compatible [`bedrock-mantle` endpoint](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) — the SDK's OpenAI provider gets a different base URL and a Bedrock API key, and no OpenAI account is involved. The provider is set to the Responses API, on the endpoint's `/openai/v1` path — where the multimodal models are served, and the only path here that takes a file in a tool's result. To run against another OpenAI-compatible service instead, change the base URL in `main.ts` and the key it is paired with.
 
