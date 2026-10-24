@@ -33,31 +33,30 @@ One difference from the cloud: AgentCore Runtime gives every session its own mic
 
 ## Deploy
 
-Deploy with the [AgentCore CLI](https://github.com/aws/agentcore-cli), replacing the generated agent with this one — the CLI's only TypeScript template is the Strands one, so that is the scaffold, and the agent inside it is swapped:
+Deploy with the [AgentCore CLI](https://github.com/aws/agentcore-cli):
 
 ```sh
-agentcore create --name WeltExample --no-agent
+agentcore create --name WeltExample
 cd WeltExample
-agentcore add agent --name WeltExample --type create --build CodeZip --language TypeScript --framework Strands --model-provider Bedrock --memory none
+agentcore add runtime --name WeltExample --language typescript \
+  --environment-variables '{"AWS_BEARER_TOKEN_BEDROCK": "<your Bedrock API key>"}'
 
 curl -o app/WeltExample/main.ts https://raw.githubusercontent.com/iwamot/welt-io-openai-agents-ts/main/examples/agent/src/main.ts
-npm --prefix app/WeltExample uninstall @strands-agents/sdk
-npm --prefix app/WeltExample install @welt-io/openai-agents @openai/agents zod
+npm --prefix app/WeltExample install @welt-io/openai-agents @openai/agents bedrock-agentcore zod
 
 agentcore deploy
 ```
 
-The Strands template assumes AWS credentials for the model; this agent talks to Bedrock's OpenAI-compatible endpoint instead, so what the deployed runtime needs in its environment is `AWS_BEARER_TOKEN_BEDROCK` — a [Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) — plus `MODEL_ID` for a model other than the default `google.gemma-4-31b` and `BEDROCK_REGION` for an endpoint region other than the one the runtime resolves. None takes a CLI flag: they go in the runtime's `envVars` array in `agentcore/agentcore.json`, added before `agentcore deploy` runs.
-
-```json
-"envVars": [
-  { "name": "AWS_BEARER_TOKEN_BEDROCK", "value": "<your Bedrock API key>" }
-]
-```
+The agent reaches the model through Bedrock's OpenAI-compatible endpoint, so the deployed runtime needs `AWS_BEARER_TOKEN_BEDROCK` — a [Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) — in its environment, plus `MODEL_ID` for a model other than the default `google.gemma-4-31b` and `BEDROCK_REGION` for an endpoint region other than the one the runtime resolves. All three go in the `--environment-variables` object.
 
 `agentcore status` reports the agent runtime ARN: Welt's `AGENT_ARN` points at it.
 
-The CLI has no teardown command — removing the deployment means deleting the CloudFormation stack it created, `AgentCore-WeltExample-default`.
+To remove the deployment, take the runtime out of the project and deploy the empty project, which deletes the CloudFormation stack, `AgentCore-WeltExample-default`:
+
+```sh
+agentcore remove runtime --name WeltExample
+agentcore deploy --yes
+```
 
 ## Tools
 
