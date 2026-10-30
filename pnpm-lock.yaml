@@ -15,8 +15,8 @@ importers:
         specifier: 0.21.0
         version: 0.21.0(@aws-sdk/credential-provider-node@3.972.88)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)
       '@types/node':
-        specifier: 26.6.5
-        version: 26.6.5
+        specifier: 26.6.6
+        version: 26.6.6
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -40,8 +40,8 @@ importers:
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: 26.6.5
-        version: 26.6.5
+        specifier: 26.6.6
+        version: 26.6.6
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -298,8 +298,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@types/node@26.6.5':
-    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
+  '@types/node@26.6.6':
+    resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
   '@types/ws@8.18.2':
     resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
@@ -1195,13 +1195,13 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@types/node@26.6.5':
+  '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 26.6.5
+      '@types/node': 26.6.6
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
