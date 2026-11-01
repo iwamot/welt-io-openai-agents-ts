@@ -16,7 +16,7 @@ npm install @welt-io/openai-agents
 
 ## Usage
 
-`startReply` and `renderableEvents` are the wiring between Welt's payload and an OpenAI Agents run, so a deployable is your agent plus a short handler:
+`startReply` and `renderableEvents` are the wiring between Welt's payload and an OpenAI Agents run, so a deployable is your agent plus a short handler. Its server comes from `bedrock-agentcore`, a separate package (`npm install bedrock-agentcore`):
 
 ```ts
 import { Agent } from "@openai/agents";
@@ -40,6 +40,8 @@ app.run();
 ```
 
 An agent with approval tools keeps the run states it needs to resume; [`examples/agent`](examples/agent) shows that — a Map under the interrupt ids, filled as the stops go by and emptied when their answers arrive.
+
+To see it in Slack, run the file (`node main.ts`). It serves on port 8080, where Welt's local mode reaches it, so follow [Welt's Quick Start](https://github.com/iwamot/welt#quick-start) with this file in place of the example agent. To deploy, follow the example's [Deploy](examples/agent#deploy) section with this file in place of the downloaded `main.ts`, then point Welt's `AGENT_ARN` at the runtime.
 
 See [`examples/agent`](examples/agent) for the full version — the smallest complete agent built on this package (text streaming, tool use, file output, file input, and human-approval tools), with the model on Amazon Bedrock's OpenAI-compatible endpoint instead of the OpenAI platform, wired in through the `runner` option. The sections below cover the handler and the adapters it wires in.
 
@@ -102,7 +104,7 @@ The SDK resumes from the state rather than from a payload, which is why this ada
 | Answer | Applied as |
 |---|---|
 | Welt's approve button (`true`) | `state.approve(...)` — the tool runs as the model called it |
-| Welt's reject button (`false`) | `state.reject(...)` — the tool does not run; the model is told it was rejected |
+| Welt's reject button (`false`) | `state.reject(...)` — the tool does not run; the model sees only the tool result "Tool execution was not approved.", and can still report the action as done, so the [example agent](examples/agent)'s `instructions` carry a rule against that |
 
 An answer whose id names no pending approval of the state throws, since resuming the wrong run would act on questions nobody was asked.
 
@@ -126,6 +128,12 @@ Reduces a streamed run — whose events carry values Welt does not render — to
 | Tool calls and tool outputs | `current_tool_use` / `tool_result` | "Using tool" indicators (tool output stays off the wire) |
 | File and image content a tool named in `filesFrom` returned | `file` | An uploaded file ([size limits](https://github.com/iwamot/welt/blob/main/docs/wire.md#limits)) |
 | Pending tool approvals | `interrupt` | An approval question (see below) |
+
+The thread does not show everything a run does:
+
+- **Files the model generates.** Only tools named in `filesFrom` upload files; a hosted tool's output, such as `imageGenerationTool`'s image, stays off the wire.
+- **Hosted tool activity.** A hosted tool such as `webSearchTool` shows no indicator.
+- **Tool failures.** A tool that throws still ends its indicator as complete, because the SDK turns the failure into text for the model and the event always reports `success`. A tool declared with `errorFunction: null` ends the reply with a failure notice instead.
 
 Reasoning items stay off the wire: models like gpt-oss think aloud before they answer, and the wire has no place for reasoning — only the answer streams.
 
@@ -152,7 +160,7 @@ Each event carries only what Welt reads, and an event with nothing to render —
 
 ## Gating tools with `needsApproval`
 
-The SDK's interrupts are tool approvals: a tool declares `needsApproval: true` (or a function deciding per call), and the run pauses before the tool's `execute` starts — the tool itself carries no approval code, which is what lets a tool the agent did not write, from a library or an MCP server, be gated the same way. It works over Welt as-is:
+The SDK's interrupts are tool approvals: a tool declares `needsApproval: true` (or a function deciding per call), and the run pauses before the tool's `execute` starts — the tool itself carries no approval code, which is what lets a tool the agent did not write, from a library or an MCP server, be gated the same way. It works over Welt as-is for function tools. A hosted MCP tool's approval (`hostedMcpTool` with `requireApproval` and no `onApproval`) has no call id to answer by, so `renderableEvents` skips it with a [process warning](https://nodejs.org/api/process.html#event-warning) and the reply ends with no question. For a function tool:
 
 ```ts
 const sampleDangerousAction = tool({
@@ -167,7 +175,7 @@ A run that stops on approvals ends its stream with one `interrupt` event per pen
 
 On the SDK side:
 
-- **Resume is a state round trip.** An interrupted streamed run exposes its `RunState` as `run.state`. The host app stashes it, and hands it back to `startReply` with the answers, which applies them and runs the same agent again on it. An in-memory stash works on AgentCore Runtime, where each session keeps its own microVM.
+- **Resume is a state round trip.** An interrupted streamed run exposes its `RunState` as `run.state`. The host app stashes it, and hands it back to `startReply` with the answers, which applies them and runs the same agent again on it. An in-memory stash works on AgentCore Runtime, where each session keeps its own microVM, until the runtime stops that microVM. A later answer then gets Welt's resume-failure notice; see [Expiry](https://github.com/iwamot/welt/blob/main/docs/interrupts.md#behavior-details).
 - **Welt resumes once every question is answered.** There is no partial resume on the wire, so the state's approvals are all applied in one call.
 - **Approved tools run on the resumed stream.** Each tool output names its own tool on this SDK, so `renderableEvents` needs nothing beyond the stream itself — their files keep flowing on resume as-is.
 
