@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { describe, test } from "node:test";
 import type {
   protocol,
@@ -14,8 +15,9 @@ import {
   RunToolCallItem,
   RunToolCallOutputItem,
 } from "@openai/agents";
-import type { RenderableEventsOptions } from "../src/index.ts";
+import type { RenderableEvent, RenderableEventsOptions } from "../src/index.ts";
 import { renderableEvents } from "../src/index.ts";
+import { sequences } from "./sequences.ts";
 
 const agent = new Agent({ name: "test-agent" });
 
@@ -71,15 +73,134 @@ async function rendered(
   return Array.fromAsync(renderableEvents(run, options));
 }
 
+test("preserves stream order, repetitions, and public tool identities", async () => {
+  const cases: [RunStreamEvent, RenderableEvent[]][] = [
+    [textDelta("hello"), [{ data: "hello" }]],
+    [textDelta("日本語\n "), [{ data: "日本語\n " }]],
+    [textDelta(""), []],
+    [new RunRawModelStreamEvent({ type: "response_started" }), []],
+    [
+      new RunItemStreamEvent(
+        "tool_called",
+        new RunToolCallItem(functionCall(), agent),
+      ),
+      [{ current_tool_use: { toolUseId: "call_1", name: "make_file" } }],
+    ],
+    [
+      new RunItemStreamEvent(
+        "tool_called",
+        new RunToolCallItem(
+          functionCall({ callId: "call_2", name: "other" }),
+          agent,
+        ),
+      ),
+      [{ current_tool_use: { toolUseId: "call_2", name: "other" } }],
+    ],
+    [
+      new RunItemStreamEvent("tool_output", outputItem("done")),
+      [{ tool_result: { toolUseId: "call_1", status: "success" } }],
+    ],
+    [
+      new RunItemStreamEvent(
+        "tool_output",
+        outputItem("other", { callId: "call_2", name: "other" }),
+      ),
+      [{ tool_result: { toolUseId: "call_2", status: "success" } }],
+    ],
+  ];
+  for (const selected of sequences(cases, 3))
+    assert.deepEqual(
+      await rendered(selected.map(([event]) => event)),
+      selected.flatMap(([, output]) => output),
+    );
+});
+
+test("preserves file bytes and names while selecting tools by their own identity", async () => {
+  type Output = protocol.FunctionCallResultItem["output"];
+  const cases: [Output, RenderableEvent[]][] = [];
+  for (const bytes of [
+    new Uint8Array([104, 105]),
+    new Uint8Array([0]),
+    Uint8Array.from({ length: 256 }, (_, i) => i),
+  ]) {
+    const data = Buffer.from(bytes).toString("base64");
+    cases.push([
+      [{ type: "input_file", file: `data:text/csv;base64,${data}` }],
+      [{ file: { name: "file.csv", bytes: data } }],
+    ]);
+
+    cases.push(
+      [
+        [
+          {
+            type: "input_file",
+            file: `data:text/csv;base64,${data}`,
+            filename: "fruits.csv",
+          },
+        ],
+        [{ file: { name: "fruits.csv", bytes: data } }],
+      ],
+      [
+        {
+          type: "file",
+          file: { data, mediaType: "text/csv", filename: "out.csv" },
+        },
+        [{ file: { name: "out.csv", bytes: data } }],
+      ],
+      [
+        { type: "file", file: { data, mediaType: "text/csv", filename: "" } },
+        [{ file: { name: "file.csv", bytes: data } }],
+      ],
+      [
+        {
+          type: "file",
+          file: { data: bytes, mediaType: "text/plain", filename: "hi.txt" },
+        },
+        [{ file: { name: "hi.txt", bytes: data } }],
+      ],
+      [
+        { type: "image", image: { data: bytes } },
+        [{ file: { name: "image.bin", bytes: data } }],
+      ],
+    );
+  }
+  for (const selected of sequences(cases, 2))
+    for (const filesFrom of [
+      undefined,
+      [],
+      ["make_file"],
+      ["other"],
+      ["make_file", "other"],
+    ]) {
+      const events: RunStreamEvent[] = [],
+        expected: RenderableEvent[] = [];
+      for (const [i, [output, files]] of selected.entries()) {
+        const callId = "call_" + (i + 1),
+          name = i % 2 === 0 ? "make_file" : "other";
+        events.push(
+          new RunItemStreamEvent(
+            "tool_output",
+            outputItem(output, { callId, name }),
+          ),
+        );
+        expected.push(
+          { tool_result: { toolUseId: callId, status: "success" } },
+          ...(filesFrom?.includes(name) ? files : []),
+        );
+      }
+      assert.deepEqual(
+        await rendered(
+          events,
+          filesFrom === undefined
+            ? undefined
+            : { filesFrom: new Set(filesFrom) },
+        ),
+        expected,
+      );
+    }
+});
+
 describe("text", () => {
-  test("a text delta becomes a data event", async () => {
-    assert.deepEqual(await rendered([textDelta("hello")]), [{ data: "hello" }]);
-  });
-
-  test("an empty delta carries nothing to render", async () => {
-    assert.deepEqual(await rendered([textDelta("")]), []);
-  });
-
   test("other raw model events stay off the wire", async () => {
     assert.deepEqual(
       await rendered([
@@ -130,18 +251,6 @@ describe("refusals", () => {
 });
 
 describe("tool calls", () => {
-  test("a function call becomes a current_tool_use event", async () => {
-    assert.deepEqual(
-      await rendered([
-        new RunItemStreamEvent(
-          "tool_called",
-          new RunToolCallItem(functionCall(), agent),
-        ),
-      ]),
-      [{ current_tool_use: { toolUseId: "call_1", name: "make_file" } }],
-    );
-  });
-
   test("a hosted tool call has no id the wire can carry", async () => {
     assert.deepEqual(
       await rendered([
@@ -154,15 +263,6 @@ describe("tool calls", () => {
         ),
       ]),
       [],
-    );
-  });
-
-  test("a tool output becomes a tool_result event", async () => {
-    assert.deepEqual(
-      await rendered([
-        new RunItemStreamEvent("tool_output", outputItem("done")),
-      ]),
-      [{ tool_result: { toolUseId: "call_1", status: "success" } }],
     );
   });
 
@@ -189,52 +289,6 @@ describe("tool calls", () => {
 describe("files", () => {
   const filesFrom = { filesFrom: ["make_file"] };
 
-  test("files flow only from tools named in filesFrom", async () => {
-    const output: protocol.FunctionCallResultItem["output"] = [
-      { type: "input_file", file: `data:text/csv;base64,${CSV}` },
-    ];
-    assert.deepEqual(
-      await rendered([
-        new RunItemStreamEvent("tool_output", outputItem(output)),
-      ]),
-      [{ tool_result: { toolUseId: "call_1", status: "success" } }],
-    );
-    assert.deepEqual(
-      await rendered(
-        [new RunItemStreamEvent("tool_output", outputItem(output))],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "file.csv", bytes: CSV } },
-      ],
-    );
-  });
-
-  test("an input_file part's filename names the upload", async () => {
-    assert.deepEqual(
-      await rendered(
-        [
-          new RunItemStreamEvent(
-            "tool_output",
-            outputItem([
-              {
-                type: "input_file",
-                file: `data:text/csv;base64,${CSV}`,
-                filename: "fruits.csv",
-              },
-            ]),
-          ),
-        ],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "fruits.csv", bytes: CSV } },
-      ],
-    );
-  });
-
   test("a string output carries no file", async () => {
     assert.deepEqual(
       await rendered(
@@ -242,73 +296,6 @@ describe("files", () => {
         filesFrom,
       ),
       [{ tool_result: { toolUseId: "call_1", status: "success" } }],
-    );
-  });
-
-  test("a single file part with data and filename", async () => {
-    assert.deepEqual(
-      await rendered(
-        [
-          new RunItemStreamEvent(
-            "tool_output",
-            outputItem({
-              type: "file",
-              file: { data: CSV, mediaType: "text/csv", filename: "out.csv" },
-            }),
-          ),
-        ],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "out.csv", bytes: CSV } },
-      ],
-    );
-  });
-
-  test("a file part with an empty filename is named by its media type", async () => {
-    assert.deepEqual(
-      await rendered(
-        [
-          new RunItemStreamEvent(
-            "tool_output",
-            outputItem({
-              type: "file",
-              file: { data: CSV, mediaType: "text/csv", filename: "" },
-            }),
-          ),
-        ],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "file.csv", bytes: CSV } },
-      ],
-    );
-  });
-
-  test("a file part's raw bytes are encoded for the wire", async () => {
-    assert.deepEqual(
-      await rendered(
-        [
-          new RunItemStreamEvent(
-            "tool_output",
-            outputItem({
-              type: "file",
-              file: {
-                data: new Uint8Array([104, 105]),
-                mediaType: "text/plain",
-                filename: "hi.txt",
-              },
-            }),
-          ),
-        ],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "hi.txt", bytes: "aGk=" } },
-      ],
     );
   });
 
@@ -403,27 +390,6 @@ describe("files", () => {
         { tool_result: { toolUseId: "call_1", status: "success" } },
         { file: { name: "image.png", bytes: "aGk=" } },
         { tool_result: { toolUseId: "call_1", status: "success" } },
-      ],
-    );
-  });
-
-  test("an image part's raw bytes are encoded for the wire", async () => {
-    assert.deepEqual(
-      await rendered(
-        [
-          new RunItemStreamEvent(
-            "tool_output",
-            outputItem({
-              type: "image",
-              image: { data: new Uint8Array([104, 105]) },
-            }),
-          ),
-        ],
-        filesFrom,
-      ),
-      [
-        { tool_result: { toolUseId: "call_1", status: "success" } },
-        { file: { name: "image.bin", bytes: "aGk=" } },
       ],
     );
   });
